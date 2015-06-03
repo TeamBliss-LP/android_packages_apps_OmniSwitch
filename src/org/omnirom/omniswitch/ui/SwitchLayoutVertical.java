@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2013 The OmniROM Project
+ *  Copyright (C) 2015 The OmniROM Project
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@ import java.util.List;
 
 import org.omnirom.omniswitch.PackageManager;
 import org.omnirom.omniswitch.R;
+import org.omnirom.omniswitch.RecentTasksLoader;
 import org.omnirom.omniswitch.SettingsActivity;
 import org.omnirom.omniswitch.SwitchManager;
 import org.omnirom.omniswitch.TaskDescription;
@@ -29,18 +30,16 @@ import android.animation.Animator;
 import android.animation.Animator.AnimatorListener;
 import android.animation.ObjectAnimator;
 import android.app.ActivityManager;
-import android.app.ActivityManager.MemoryInfo;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Outline;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.Drawable;
-import android.text.format.Formatter;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
-import android.view.ViewAnimationUtils;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
 import android.view.ViewTreeObserver;
@@ -51,25 +50,17 @@ import android.widget.AdapterView.OnItemLongClickListener;
 import android.widget.ArrayAdapter;
 import android.widget.FrameLayout;
 import android.widget.GridView;
-import android.widget.HorizontalScrollView;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
+import android.widget.ListView;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-public class SwitchLayout extends AbstractSwitchLayout {
-    private HorizontalListView mRecentListHorizontal;
-    private HorizontalListView mFavoriteListHorizontal;
+public class SwitchLayoutVertical extends AbstractSwitchLayout {
+    private ListView mRecentList;
+    private ListView mFavoriteListView;
     private RecentListAdapter mRecentListAdapter;
-    private LinearColorBar mRamUsageBar;
-    private TextView mBackgroundProcessText;
-    private TextView mForegroundProcessText;
-    private LinearLayout mRamUsageBarContainer;
-    private Animator mAppDrawerAnim;
-    private Animator mRecentsAnim;
-    private HorizontalScrollView mButtonList;
-    protected Runnable mUpdateRamBarTask;
+    private ScrollView mButtonList;
 
     private class RecentListAdapter extends ArrayAdapter<TaskDescription> {
 
@@ -84,21 +75,16 @@ public class SwitchLayout extends AbstractSwitchLayout {
 
             PackageTextView item = null;
             if (convertView == null) {
-                item = getPackageItemTemplate();
+                item = getRecentItemTemplate();
             } else {
                 item = (PackageTextView) convertView;
             }
-            item.setTask(ad, false);
+            item.setLabel(ad.getLabel());
+            item.setTask(ad, true);
+            item.setDefaultThumb();
 
-            if (mConfiguration.mShowLabels) {
-                item.setText(ad.getLabel());
-            } else {
-                item.setText("");
-            }
-            Drawable d = BitmapCache.getInstance(mContext).getResized(
-                    mContext.getResources(), ad, ad.getIcon(), mConfiguration,
-                    mConfiguration.mIconSize);
-            item.setCompoundDrawablesWithIntrinsicBounds(null, d, null, null);
+            // load thumb if not loaded so far
+            loadTaskThumb(item);
             return item;
         }
     }
@@ -110,14 +96,7 @@ public class SwitchLayout extends AbstractSwitchLayout {
         }
     };
 
-    private static final ViewOutlineProvider BAR_OUTLINE_PROVIDER = new ViewOutlineProvider() {
-        @Override
-        public void getOutline(View view, Outline outline) {
-            outline.setRect(0, 0, view.getWidth(), view.getHeight());
-        }
-    };
-
-    public SwitchLayout(SwitchManager manager, Context context) {
+    public SwitchLayoutVertical(SwitchManager manager, Context context) {
         super(manager, context);
         mRecentListAdapter = new RecentListAdapter(mContext,
                 android.R.layout.simple_list_item_single_choice,
@@ -125,52 +104,21 @@ public class SwitchLayout extends AbstractSwitchLayout {
         // default on first start
         mShowFavorites = mPrefs.getBoolean(SettingsActivity.PREF_SHOW_FAVORITE,
                 false);
-
-        mUpdateRamBarTask = new Runnable() {
-            @Override
-            public void run() {
-                if (!mConfiguration.mShowRambar || mRamUsageBar == null) {
-                    return;
-                }
-                final ActivityManager am = (ActivityManager) mContext
-                        .getSystemService(Context.ACTIVITY_SERVICE);
-                MemoryInfo memInfo = new MemoryInfo();
-                am.getMemoryInfo(memInfo);
-
-                long availMem = memInfo.availMem;
-                long totalMem = memInfo.totalMem;
-
-                String sizeStr = Formatter.formatShortFileSize(mContext,
-                        totalMem - availMem);
-                mForegroundProcessText.setText(mContext.getResources()
-                        .getString(R.string.service_foreground_processes,
-                                sizeStr));
-                sizeStr = Formatter.formatShortFileSize(mContext, availMem);
-                mBackgroundProcessText.setText(mContext.getResources()
-                        .getString(R.string.service_background_processes,
-                                sizeStr));
-
-                float fTotalMem = totalMem;
-                float fAvailMem = availMem;
-                mRamUsageBar.setRatios((fTotalMem - fAvailMem) / fTotalMem, 0,
-                        0);
-            }
-        };
     }
 
     @Override
     protected synchronized void createView() {
-        mView = mInflater
-                .inflate(R.layout.recents_list_horizontal, null, false);
+        mView = mInflater.inflate(R.layout.recents_list_vertical, null, false);
 
         mRecents = (LinearLayout) mView.findViewById(R.id.recents);
 
-        mRecentListHorizontal = (HorizontalListView) mView
+        mRecentList = (ListView) mView
                 .findViewById(R.id.recent_list_horizontal);
+        mRecentList.setVerticalScrollBarEnabled(false);
 
         mNoRecentApps = (TextView) mView.findViewById(R.id.no_recent_apps);
 
-        mRecentListHorizontal.setOnItemClickListener(new OnItemClickListener() {
+        mRecentList.setOnItemClickListener(new OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view,
                     int position, long id) {
@@ -179,22 +127,21 @@ public class SwitchLayout extends AbstractSwitchLayout {
             }
         });
 
-        mRecentListHorizontal
-                .setOnItemLongClickListener(new OnItemLongClickListener() {
-                    @Override
-                    public boolean onItemLongClick(AdapterView<?> parent,
-                            View view, int position, long id) {
-                        TaskDescription task = mRecentsManager.getTasks().get(
-                                position);
-                        handleLongPressRecent(task, view);
-                        return true;
-                    }
-                });
+        mRecentList.setOnItemLongClickListener(new OnItemLongClickListener() {
+            @Override
+            public boolean onItemLongClick(AdapterView<?> parent, View view,
+                    int position, long id) {
+                TaskDescription task = mRecentsManager.getTasks().get(position);
+                handleLongPressRecent(task, view);
+                return true;
+            }
+        });
 
-        SwipeDismissHorizontalListViewTouchListener touchListener = new SwipeDismissHorizontalListViewTouchListener(
-                mRecentListHorizontal,
-                new SwipeDismissHorizontalListViewTouchListener.DismissCallbacks() {
-                    public void onDismiss(HorizontalListView listView,
+        SwipeDismissListViewTouchListener touchListener = new SwipeDismissListViewTouchListener(
+                mRecentList,
+                new SwipeDismissListViewTouchListener.DismissCallbacks() {
+                    @Override
+                    public void onDismiss(ListView listView,
                             int[] reverseSortedPositions) {
                         Log.d(TAG, "onDismiss: "
                                 + mRecentsManager.getTasks().size() + ":"
@@ -214,44 +161,24 @@ public class SwitchLayout extends AbstractSwitchLayout {
                     }
                 });
 
-        mRecentListHorizontal.setSwipeListener(touchListener);
-        mRecentListHorizontal.setAdapter(mRecentListAdapter);
+        mRecentList.setOnTouchListener(touchListener);
+        mRecentList.setOnScrollListener(touchListener.makeScrollListener());
+        mRecentList.setAdapter(mRecentListAdapter);
 
-        mOpenFavorite = (ImageView) mView.findViewById(R.id.openFavorites);
-
-        mOpenFavorite.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-                toggleFavorites();
-            }
-        });
-
-        mOpenFavorite.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                Toast.makeText(
-                        mContext,
-                        mContext.getResources().getString(
-                                R.string.open_favorite_help),
-                        Toast.LENGTH_SHORT).show();
-                return true;
-            }
-        });
-
-        mFavoriteListHorizontal = (HorizontalListView) mView
+        mFavoriteListView = (ListView) mView
                 .findViewById(R.id.favorite_list_horizontal);
+        mFavoriteListView.setVerticalScrollBarEnabled(false);
+        mFavoriteListView.setOnItemClickListener(new OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view,
+                    int position, long id) {
+                String intent = mFavoriteList.get(position);
+                mRecentsManager.startIntentFromtString(intent, true);
+            }
+        });
+        mFavoriteListView.setAdapter(mFavoriteListAdapter);
 
-        mFavoriteListHorizontal
-                .setOnItemClickListener(new OnItemClickListener() {
-                    @Override
-                    public void onItemClick(AdapterView<?> parent, View view,
-                            int position, long id) {
-                        String intent = mFavoriteList.get(position);
-                        mRecentsManager.startIntentFromtString(intent, true);
-                    }
-                });
-        mFavoriteListHorizontal.setAdapter(mFavoriteListAdapter);
-
-        mFavoriteListHorizontal
+        mFavoriteListView
                 .setOnItemLongClickListener(new OnItemLongClickListener() {
                     @Override
                     public boolean onItemLongClick(AdapterView<?> parent,
@@ -263,16 +190,6 @@ public class SwitchLayout extends AbstractSwitchLayout {
                         return true;
                     }
                 });
-
-        mRamUsageBarContainer = (LinearLayout) mView
-                .findViewById(R.id.ram_usage_bar_container);
-        mRamUsageBar = (LinearColorBar) mView.findViewById(R.id.ram_usage_bar);
-        mForegroundProcessText = (TextView) mView
-                .findViewById(R.id.foregroundText);
-        mBackgroundProcessText = (TextView) mView
-                .findViewById(R.id.backgroundText);
-        mForegroundProcessText.setTextColor(Color.WHITE);
-        mBackgroundProcessText.setTextColor(Color.WHITE);
 
         mAppDrawer = (GridView) mView.findViewById(R.id.app_drawer);
         mAppDrawer.setOnItemClickListener(new OnItemClickListener() {
@@ -318,7 +235,7 @@ public class SwitchLayout extends AbstractSwitchLayout {
             }
             return;
         }
-        if (mNoRecentApps == null || mRecentListHorizontal == null) {
+        if (mNoRecentApps == null || mRecentList == null) {
             if (DEBUG) {
                 Log.d(TAG,
                         "mNoRecentApps == null || mRecentListHorizontal == null");
@@ -339,10 +256,10 @@ public class SwitchLayout extends AbstractSwitchLayout {
 
         if (mRecentsManager.getTasks().size() != 0) {
             mNoRecentApps.setVisibility(View.GONE);
-            mRecentListHorizontal.setVisibility(View.VISIBLE);
+            mRecentList.setVisibility(View.VISIBLE);
         } else {
             mNoRecentApps.setVisibility(View.VISIBLE);
-            mRecentListHorizontal.setVisibility(View.GONE);
+            mRecentList.setVisibility(View.GONE);
         }
         mUpdateNoRecentsTasksDone = true;
     }
@@ -352,10 +269,10 @@ public class SwitchLayout extends AbstractSwitchLayout {
         if (mButtonListContainer != null) {
             mButtonListContainer.setVisibility(View.GONE);
         }
-        mButtonList = (HorizontalScrollView) mView
+        mButtonList = (ScrollView) mView
                 .findViewById(mConfiguration.mButtonPos == 0 ? R.id.button_list_top
                         : R.id.button_list_bottom);
-        mButtonList.setHorizontalScrollBarEnabled(false);
+        mButtonList.setVerticalScrollBarEnabled(false);
         mButtonListItems = (LinearLayout) mView
                 .findViewById(mConfiguration.mButtonPos == 0 ? R.id.button_list_items_top
                         : R.id.button_list_items_bottom);
@@ -379,29 +296,14 @@ public class SwitchLayout extends AbstractSwitchLayout {
                 mView.getBackground().setAlpha(0);
             }
         }
-        mRamUsageBarContainer
-                .setVisibility(mConfiguration.mShowRambar ? View.VISIBLE
-                        : View.GONE);
 
-        mConfiguration.calcHorizontalDivider();
+        mFavoriteListView.setLayoutParams(getListParams());
+        mFavoriteListView.setSelection(0);
 
-        mFavoriteListHorizontal.setLayoutParams(getListParams());
-        mFavoriteListHorizontal.scrollTo(0);
-        mFavoriteListHorizontal
-                .setDividerWidth(mConfiguration.mHorizontalDividerWidth);
-        mFavoriteListHorizontal.setPadding(
-                mConfiguration.mHorizontalDividerWidth / 2, 0,
-                mConfiguration.mHorizontalDividerWidth / 2, 0);
+        mRecentList.setLayoutParams(getRecentListParams());
+        mRecentList.setSelection(0);
 
-        mRecentListHorizontal.setLayoutParams(getListParams());
-        mRecentListHorizontal.scrollTo(0);
-        mRecentListHorizontal
-                .setDividerWidth(mConfiguration.mHorizontalDividerWidth);
-        mRecentListHorizontal.setPadding(
-                mConfiguration.mHorizontalDividerWidth / 2, 0,
-                mConfiguration.mHorizontalDividerWidth / 2, 0);
-
-        mNoRecentApps.setLayoutParams(getListParams());
+        mNoRecentApps.setLayoutParams(getRecentListParams());
         mAppDrawer.setColumnWidth(mConfiguration.mMaxWidth);
         mAppDrawer.setLayoutParams(getAppDrawerParams());
         mAppDrawer.requestLayout();
@@ -416,13 +318,11 @@ public class SwitchLayout extends AbstractSwitchLayout {
             mShowFavorites = false;
         }
 
-        mFavoriteListHorizontal.setVisibility(mShowFavorites ? View.VISIBLE
+        mFavoriteListView.setVisibility(mShowFavorites ? View.VISIBLE
                 : View.GONE);
-        mOpenFavorite.setVisibility(mHasFavorites ? View.VISIBLE : View.GONE);
-        mOpenFavorite.setRotation(mShowFavorites ? ROTATE_180_DEGREE : 0);
-        mOpenFavorite
-                .setBackgroundResource(mConfiguration.mBgStyle == 0 ? R.drawable.ripple_dark
-                        : R.drawable.ripple_light);
+        mOpenFavorite.setVisibility((mHasFavorites && mAppDrawer
+                .getVisibility() == View.GONE) ? View.VISIBLE : View.GONE);
+        mOpenFavorite.setRotation(getExpandRotation());
 
         if (mHasFavorites && !mShowcaseDone) {
             mOpenFavorite.getViewTreeObserver().addOnGlobalLayoutListener(
@@ -446,10 +346,14 @@ public class SwitchLayout extends AbstractSwitchLayout {
         mVirtualBackKey = false;
     }
 
-    private LinearLayout.LayoutParams getListParams() {
-        return new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                mConfiguration.getItemMaxHeight());
+    protected LinearLayout.LayoutParams getListParams() {
+        return new LinearLayout.LayoutParams(mConfiguration.mMaxWidth,
+                LinearLayout.LayoutParams.MATCH_PARENT);
+    }
+
+    private LinearLayout.LayoutParams getRecentListParams() {
+        return new LinearLayout.LayoutParams(mConfiguration.mThumbnailWidth,
+                LinearLayout.LayoutParams.MATCH_PARENT);
     }
 
     @Override
@@ -458,28 +362,33 @@ public class SwitchLayout extends AbstractSwitchLayout {
                 mConfiguration.getItemMaxHeight());
     }
 
-    // TODO dont use real icon size values in code
-    private int getAppDrawerLines() {
-        if (mConfiguration.mIconSize == 40) {
-            return 5;
-        }
-        if (mConfiguration.mIconSize == 60) {
-            return 4;
-        }
-        return 3;
+    private LinearLayout.LayoutParams getRecentListItemParams() {
+        return new LinearLayout.LayoutParams(mConfiguration.mThumbnailWidth,
+                mConfiguration.getThumbnailMaxHeight());
     }
 
-    private RelativeLayout.LayoutParams getAppDrawerParams() {
-        return new RelativeLayout.LayoutParams(
-                RelativeLayout.LayoutParams.MATCH_PARENT, getAppDrawerLines()
-                        * mConfiguration.getItemMaxHeight());
+    // TODO dont use real icon size values in code
+    private int getAppDrawerColumns() {
+        if (mConfiguration.mIconSize == 40) {
+            return 4;
+        }
+        if (mConfiguration.mIconSize == 60) {
+            return 3;
+        }
+        return 2;
+    }
+
+    private LinearLayout.LayoutParams getAppDrawerParams() {
+        return new LinearLayout.LayoutParams(getAppDrawerColumns()
+                * mConfiguration.mMaxWidth,
+                LinearLayout.LayoutParams.MATCH_PARENT);
     }
 
     @Override
     protected WindowManager.LayoutParams getParams(float dimAmount) {
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-                getCurrentOverlayWidth(),
                 WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.TYPE_PHONE,
                 mConfiguration.mDimBehind ? WindowManager.LayoutParams.FLAG_DIM_BEHIND
                         : 0, PixelFormat.TRANSLUCENT);
@@ -493,24 +402,16 @@ public class SwitchLayout extends AbstractSwitchLayout {
             params.dimAmount = dimAmount;
         }
 
-        params.gravity = Gravity.TOP | getHorizontalGravity();
-        params.y = mConfiguration.getCurrentOffsetStart()
-                + mConfiguration.mDragHandleHeight / 2
-                - mConfiguration.getItemMaxHeight() / 2
-                - (mButtonsVisible ? mConfiguration.getItemMaxHeight() : 0);
+        params.gravity = getHorizontalGravity();
 
         return params;
     }
 
     private int getHorizontalGravity() {
-        if (mConfiguration.mGravity == 0) {
-            return Gravity.CENTER_HORIZONTAL;
+        if (mConfiguration.mLocation == 0) {
+            return Gravity.RIGHT;
         } else {
-            if (mConfiguration.mLocation == 0) {
-                return Gravity.RIGHT;
-            } else {
-                return Gravity.LEFT;
-            }
+            return Gravity.LEFT;
         }
     }
 
@@ -521,43 +422,31 @@ public class SwitchLayout extends AbstractSwitchLayout {
             Log.d(TAG, "updatePrefs");
         }
         mFavoriteListAdapter.notifyDataSetChanged();
-        if (mFavoriteListHorizontal != null) {
-            mFavoriteListHorizontal.setAdapter(mFavoriteListAdapter);
+        if (mFavoriteListView != null) {
+            mFavoriteListView.setAdapter(mFavoriteListAdapter);
         }
         mRecentListAdapter.notifyDataSetChanged();
-        if (mRecentListHorizontal != null) {
-            mRecentListHorizontal.setAdapter(mRecentListAdapter);
+        if (mRecentList != null) {
+            mRecentList.setAdapter(mRecentListAdapter);
         }
         mAppDrawerListAdapter.notifyDataSetChanged();
         if (mAppDrawer != null) {
             mAppDrawer.setAdapter(mAppDrawerListAdapter);
         }
+        createOpenFavoriteButton();
         buildButtonList();
+        addOpenFavoriteButton();
     }
 
     @Override
     public void updateLayout() {
         try {
             if (mShowing) {
-                mConfiguration.calcHorizontalDivider();
-
-                mFavoriteListHorizontal
-                        .setDividerWidth(mConfiguration.mHorizontalDividerWidth);
-                mFavoriteListHorizontal.setPadding(
-                        mConfiguration.mHorizontalDividerWidth / 2, 0,
-                        mConfiguration.mHorizontalDividerWidth / 2, 0);
-
-                mRecentListHorizontal
-                        .setDividerWidth(mConfiguration.mHorizontalDividerWidth);
-                mRecentListHorizontal.setPadding(
-                        mConfiguration.mHorizontalDividerWidth / 2, 0,
-                        mConfiguration.mHorizontalDividerWidth / 2, 0);
-
                 mFavoriteListAdapter.notifyDataSetChanged();
-                mFavoriteListHorizontal.setAdapter(mFavoriteListAdapter);
+                mFavoriteListView.setAdapter(mFavoriteListAdapter);
 
                 mRecentListAdapter.notifyDataSetChanged();
-                mRecentListHorizontal.setAdapter(mRecentListAdapter);
+                mRecentList.setAdapter(mRecentListAdapter);
 
                 mWindowManager.updateViewLayout(mPopupView,
                         getParams(mConfiguration.mBackgroundOpacity));
@@ -568,73 +457,39 @@ public class SwitchLayout extends AbstractSwitchLayout {
         }
     }
 
+    private PackageTextView getRecentItemTemplate() {
+        PackageTextView item = new PackageTextView(mContext);
+        if (mConfiguration.mBgStyle == 0) {
+            item.setTextColor(Color.BLACK);
+            item.setShadowLayer(0, 0, 0, Color.BLACK);
+        } else {
+            item.setTextColor(Color.WHITE);
+            item.setShadowLayer(5, 0, 0, Color.BLACK);
+        }
+        item.setTextSize(mConfiguration.mLabelFontSize);
+        item.setEllipsize(TextUtils.TruncateAt.END);
+        item.setGravity(Gravity.CENTER);
+        item.setMaxLines(1);
+        item.setLayoutParams(getRecentListItemParams());
+        item.setBackgroundResource(mConfiguration.mBgStyle == 0 ? R.drawable.ripple_dark
+                : R.drawable.ripple_light);
+        return item;
+    }
+
     @Override
     protected void flipToAppDrawerNew() {
-        if (mRecentsAnim != null) {
-            mRecentsAnim.cancel();
-        }
-        if (mAppDrawerAnim != null) {
-            mAppDrawerAnim.cancel();
-        }
-
-        // center right
-        int cx = (mAppDrawer.getLeft() + mAppDrawer.getRight() / 2);
-        int cy = (mAppDrawer.getTop() + mAppDrawer.getBottom() / 2);
-
-        // get the final radius for the clipping circle
-        int finalRadius = Math.max(mAppDrawer.getWidth(),
-                mAppDrawer.getHeight());
-
-        // create the animator for this view (the start radius is zero)
-        mAppDrawerAnim = ViewAnimationUtils.createCircularReveal(mAppDrawer,
-                cx, cy, 0, finalRadius);
-        mAppDrawerAnim.setDuration(FLIP_DURATION);
+        mRecents.setVisibility(View.GONE);
         mAppDrawer.setVisibility(View.VISIBLE);
-
-        mRecents.animate().alpha(0f).setDuration(FLIP_DURATION / 2)
-                .withEndAction(new Runnable() {
-                    @Override
-                    public void run() {
-                        mRecents.setVisibility(View.GONE);
-                        mRecents.setAlpha(1f);
-                    }
-                });
-
-        mAppDrawerAnim.start();
+        mOpenFavorite.setVisibility((mHasFavorites && mAppDrawer
+                .getVisibility() == View.GONE) ? View.VISIBLE : View.GONE);
     }
 
     @Override
     protected void flipToRecentsNew() {
-        if (mRecentsAnim != null) {
-            mRecentsAnim.cancel();
-        }
-        if (mAppDrawerAnim != null) {
-            mAppDrawerAnim.cancel();
-        }
-
-        // center
-        int cx = (mRecents.getLeft() + mRecents.getRight() / 2);
-        int cy = (mRecents.getTop() + mRecents.getBottom() / 2);
-
-        // get the final radius for the clipping circle
-        int finalRadius = Math.max(mRecents.getWidth(), mRecents.getHeight());
-
-        // create the animator for this view (the start radius is zero)
-        mRecentsAnim = ViewAnimationUtils.createCircularReveal(mRecents, cx,
-                cy, 0, finalRadius);
-        mRecentsAnim.setDuration(FLIP_DURATION);
+        mAppDrawer.setVisibility(View.GONE);
         mRecents.setVisibility(View.VISIBLE);
-
-        mAppDrawer.animate().alpha(0f).setDuration(FLIP_DURATION / 2)
-                .withEndAction(new Runnable() {
-                    @Override
-                    public void run() {
-                        mAppDrawer.setVisibility(View.GONE);
-                        mAppDrawer.setAlpha(1f);
-                    }
-                });
-
-        mRecentsAnim.start();
+        mOpenFavorite.setVisibility((mHasFavorites && mAppDrawer
+                .getVisibility() == View.GONE) ? View.VISIBLE : View.GONE);
     }
 
     private void toggleFavorites() {
@@ -645,31 +500,29 @@ public class SwitchLayout extends AbstractSwitchLayout {
         }
 
         if (mShowFavorites) {
-            mFavoriteListHorizontal.setVisibility(View.VISIBLE);
-            mFavoriteListHorizontal.setScaleY(0f);
-            mFavoriteListHorizontal.setPivotY(0f);
+            mFavoriteListView.setVisibility(View.VISIBLE);
+            mFavoriteListView.setScaleX(0f);
+            mFavoriteListView.setPivotX(0f);
             mShowFavAnim = start(interpolator(
                     mLinearInterpolator,
-                    ObjectAnimator.ofFloat(mFavoriteListHorizontal,
-                            View.SCALE_Y, 0f, 1f)).setDuration(
-                    FAVORITE_DURATION));
+                    ObjectAnimator.ofFloat(mFavoriteListView, View.SCALE_X, 0f,
+                            1f)).setDuration(FAVORITE_DURATION));
         } else {
-            mFavoriteListHorizontal.setScaleY(1f);
-            mFavoriteListHorizontal.setPivotY(0f);
+            mFavoriteListView.setScaleX(1f);
+            mFavoriteListView.setPivotX(0f);
             mShowFavAnim = start(setVisibilityWhenDone(
                     interpolator(
                             mLinearInterpolator,
-                            ObjectAnimator.ofFloat(mFavoriteListHorizontal,
-                                    View.SCALE_Y, 1f, 0f)).setDuration(
-                            FAVORITE_DURATION), mFavoriteListHorizontal,
+                            ObjectAnimator.ofFloat(mFavoriteListView,
+                                    View.SCALE_X, 1f, 0f)).setDuration(
+                            FAVORITE_DURATION), mFavoriteListView,
                     View.GONE));
         }
 
         mShowFavAnim.addListener(new AnimatorListener() {
             @Override
             public void onAnimationEnd(Animator animation) {
-                mOpenFavorite.setRotation(mShowFavorites ? ROTATE_180_DEGREE
-                        : 0);
+                mOpenFavorite.setRotation(getExpandRotation());
             }
 
             @Override
@@ -686,56 +539,100 @@ public class SwitchLayout extends AbstractSwitchLayout {
         });
     }
 
+    private void addOpenFavoriteButton() {
+        mActionList.add(mOpenFavorite);
+    }
+
     @Override
     protected LinearLayout.LayoutParams getButtonListParams() {
-        int buttonMargin = Math.round(5 * mConfiguration.mDensity);
+        int buttonMargin = Math.round(2 * mConfiguration.mDensity);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT);
-        params.setMargins(buttonMargin, 0, buttonMargin, 0);
+        params.setMargins(0, buttonMargin, 0, buttonMargin);
         return params;
     }
-
+    
     private void updateStyle() {
         if (mConfiguration.mBgStyle == 0) {
             mButtonListContainer.setBackground(mContext.getResources()
                     .getDrawable(R.drawable.overlay_bg_button_flat));
-            mForegroundProcessText.setShadowLayer(0, 0, 0, Color.BLACK);
-            mBackgroundProcessText.setShadowLayer(0, 0, 0, Color.BLACK);
             mNoRecentApps.setTextColor(Color.BLACK);
             mNoRecentApps.setShadowLayer(0, 0, 0, Color.BLACK);
-            mOpenFavorite.setImageDrawable(BitmapUtils.colorize(
-                    mContext.getResources(),
-                    mContext.getResources().getColor(
-                            R.color.button_bg_flat_color),
-                    mContext.getResources().getDrawable(
-                            R.drawable.ic_expand_down)));
-            mRamUsageBarContainer.setOutlineProvider(BAR_OUTLINE_PROVIDER);
+            mOpenFavorite.setImageDrawable(mContext.getResources().getDrawable(
+                    R.drawable.ic_expand_down));
             mButtonListContainer.setOutlineProvider(BUTTON_OUTLINE_PROVIDER);
         } else {
             mButtonListContainer.setBackground(null);
-            mForegroundProcessText.setShadowLayer(5, 0, 0, Color.BLACK);
-            mBackgroundProcessText.setShadowLayer(5, 0, 0, Color.BLACK);
             mNoRecentApps.setTextColor(Color.WHITE);
             mNoRecentApps.setShadowLayer(5, 0, 0, Color.BLACK);
             mOpenFavorite.setImageDrawable(BitmapUtils.shadow(
                     mContext.getResources(),
                     mContext.getResources().getDrawable(
                             R.drawable.ic_expand_down)));
-            mRamUsageBarContainer.setOutlineProvider(null);
             mButtonListContainer.setOutlineProvider(null);
         }
     }
 
+    private void createOpenFavoriteButton() {
+        mOpenFavorite = getActionButtonTemplate(mContext.getResources()
+                .getDrawable(R.drawable.ic_expand_down));
+
+        mOpenFavorite.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                toggleFavorites();
+            }
+        });
+
+        mOpenFavorite.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                Toast.makeText(
+                        mContext,
+                        mContext.getResources().getString(
+                                R.string.open_favorite_help),
+                        Toast.LENGTH_SHORT).show();
+                return true;
+            }
+        });
+    }
+
+    private int getExpandRotation() {
+        if (mConfiguration.mLocation != 0) {
+            return mShowFavorites ? ROTATE_90_DEGREE : ROTATE_270_DEGREE;
+        }
+        return mShowFavorites ? ROTATE_270_DEGREE : ROTATE_90_DEGREE;
+    }
+
     @Override
     protected int getCurrentOverlayWidth() {
-        return mConfiguration.getCurrentOverlayWidth();
+        return mConfiguration.mThumbnailWidth
+                + (mShowFavorites ? mConfiguration.mMaxWidth : 0)
+                + (isButtonVisible() ? mConfiguration.mActionIconSizePx : 0);
+    }
+
+    private void loadTaskThumb(PackageTextView item) {
+        if (item.getTask() != null) {
+            Drawable cached = item.getCachedThumb();
+            if (cached == null) {
+                if (DEBUG) {
+                    Log.d(TAG, "loadTaskThumb new:" + item.getTask().getLabel()
+                            + " " + item.getTask().getPersistentTaskId());
+                }
+                RecentTasksLoader.getInstance(mContext).loadThumbnail(
+                        item.getTask());
+            } else {
+                if (DEBUG) {
+                    Log.d(TAG, "loadTaskThumb cached:"
+                            + item.getTask().getLabel() + " "
+                            + item.getTask().getPersistentTaskId());
+                }
+                item.setThumb(cached);
+            }
+        }
     }
 
     @Override
     protected void updateRamDisplay() {
-        if (mUpdateRamBarTask != null && mConfiguration.mShowRambar) {
-            mHandler.post(mUpdateRamBarTask);
-        }
     }
 }

@@ -23,6 +23,7 @@ import org.omnirom.omniswitch.TaskDescription;
 
 import android.content.Context;
 import android.content.res.Resources;
+import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.util.LruCache;
@@ -33,6 +34,7 @@ public class BitmapCache {
     private static BitmapCache sInstance;
     private Context mContext;
     private LruCache<String, Drawable> mMemoryCache;
+    private LruCache<String, Drawable> mThumbnailCache;
 
     public static BitmapCache getInstance(Context context) {
         if (sInstance == null){
@@ -61,6 +63,19 @@ public class BitmapCache {
                 }
             }
         };
+        
+        mThumbnailCache = new LruCache<String, Drawable>((int)cacheSize) {
+            @Override
+            protected int sizeOf(String key, Drawable bitmap) {
+                // The cache size will be measured in kilobytes rather than
+                // number of items.
+                if (bitmap instanceof BitmapDrawable){
+                    return ((BitmapDrawable)bitmap).getBitmap().getAllocationByteCount();
+                } else {
+                    return 1;
+                }
+            }
+        };
     }
 
     private void setContext(Context context) {
@@ -71,6 +86,10 @@ public class BitmapCache {
         mMemoryCache.evictAll();
     }
 
+    public void clearThumbs() {
+        mThumbnailCache.evictAll();
+    }
+    
     private String bitmapHash(String intent, int iconSize) {
         return intent + iconSize;
     }
@@ -156,5 +175,15 @@ public class BitmapCache {
 
     public Drawable getBitmapFromMemCache(String key) {
         return mMemoryCache.get(key);
+    }
+
+    public Drawable getSharedThumbnail(TaskDescription ad) {
+        String key = String.valueOf(ad.getPersistentTaskId());
+        return mThumbnailCache.get(key);
+    }
+
+    public void putSharedThumbnail(Resources resources, TaskDescription ad, Drawable thumb) {
+        String key = String.valueOf(ad.getPersistentTaskId());
+        mThumbnailCache.put(key, thumb);
     }
 }
