@@ -86,8 +86,6 @@ public class SettingsActivity extends PreferenceActivity implements
     public static final String PREF_BUTTON_POS = "button_pos";
     public static final String PREF_BG_STYLE = "bg_style";
     public static final String PREF_APP_FILTER_BOOT = "app_filter_boot";
-    public static final String PREF_LAYOUT_STYLE = "layout_style";
-    public static final String PREF_APP_FILTER_TIME = "app_filter_time";
 
     public static int BUTTON_KILL_ALL = 0;
     public static int BUTTON_KILL_OTHER = 1;
@@ -127,8 +125,6 @@ public class SettingsActivity extends PreferenceActivity implements
     private NumberPickerPreference mSpeedSwitchItems;
     private ListPreference mButtonPos;
     private ListPreference mBgStyle;
-    private ListPreference mLayoutStyle;
-    private ListPreference mAppFilterTime;
 
     @Override
     public void onPause() {
@@ -203,20 +199,6 @@ public class SettingsActivity extends PreferenceActivity implements
                 mBgStyle.getEntryValues()[0].toString()));
         mBgStyle.setValueIndex(idx);
         mBgStyle.setSummary(mBgStyle.getEntries()[idx]);
-
-        mLayoutStyle = (ListPreference) findPreference(PREF_LAYOUT_STYLE);
-        mLayoutStyle.setOnPreferenceChangeListener(this);
-        idx = mLayoutStyle.findIndexOfValue(mPrefs.getString(PREF_LAYOUT_STYLE,
-                mLayoutStyle.getEntryValues()[0].toString()));
-        mLayoutStyle.setValueIndex(idx);
-        mLayoutStyle.setSummary(mLayoutStyle.getEntries()[idx]);
-
-        mAppFilterTime = (ListPreference) findPreference(PREF_APP_FILTER_TIME);
-        mAppFilterTime.setOnPreferenceChangeListener(this);
-        idx = mAppFilterTime.findIndexOfValue(mPrefs.getString(PREF_APP_FILTER_TIME,
-                mAppFilterTime.getEntryValues()[0].toString()));
-        mAppFilterTime.setValueIndex(idx);
-        mAppFilterTime.setSummary(mAppFilterTime.getEntries()[idx]);
 
         mPrefsListener = new SharedPreferences.OnSharedPreferenceChangeListener() {
             public void onSharedPreferenceChanged(SharedPreferences prefs,
@@ -315,19 +297,8 @@ public class SettingsActivity extends PreferenceActivity implements
             mBgStyle.setSummary(mBgStyle.getEntries()[idx]);
             mBgStyle.setValueIndex(idx);
             return true;
-        } else if (preference == mLayoutStyle) {
-            String value = (String) newValue;
-            int idx = mLayoutStyle.findIndexOfValue(value);
-            mLayoutStyle.setSummary(mLayoutStyle.getEntries()[idx]);
-            mLayoutStyle.setValueIndex(idx);
-            return true;
-        } else if (preference == mAppFilterTime) {
-            String value = (String) newValue;
-            int idx = mAppFilterTime.findIndexOfValue(value);
-            mAppFilterTime.setSummary(mAppFilterTime.getEntries()[idx]);
-            mAppFilterTime.setValueIndex(idx);
-            return true;
         }
+
         return false;
     }
 

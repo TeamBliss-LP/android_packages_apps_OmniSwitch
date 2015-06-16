@@ -24,7 +24,6 @@ import java.util.List;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.ResolveInfo;
-import android.graphics.Bitmap;
 import android.graphics.drawable.Drawable;
 
 public final class TaskDescription {
@@ -36,20 +35,20 @@ public final class TaskDescription {
     final CharSequence description;
     private Drawable mIcon; // application package icon
     private CharSequence mLabel; // application package label
-    private boolean mIsActive;
+    private boolean mLoaded;
     private boolean mKilled;
     private ActivityInfo mActivityInfo;
-    private ThumbChangeListener mListener;
-    private boolean mThumbLoading;
+    private Drawable mThumb;
+    private boolean mInitThumb = false;
+    private List<ThumbChangeListener> mListener;
 
     public static interface ThumbChangeListener {
-        public void thumbChanged(int pesistentTaskId, Bitmap thumb);
-        public int getPersistentTaskId();
+        public void thumbChanged();
     }
 
     public TaskDescription(int _taskId, int _persistentTaskId,
             ResolveInfo _resolveInfo, Intent _intent, String _packageName,
-            CharSequence _description, boolean activeTask) {
+            CharSequence _description) {
         resolveInfo = _resolveInfo;
         intent = _intent;
         taskId = _taskId;
@@ -58,7 +57,7 @@ public final class TaskDescription {
         description = _description;
         packageName = _packageName;
         mActivityInfo = resolveInfo.activityInfo;
-        mIsActive = activeTask;
+        mListener = new ArrayList<ThumbChangeListener>();
     }
 
     public TaskDescription() {
@@ -71,8 +70,12 @@ public final class TaskDescription {
         packageName = null;
     }
 
-    public boolean isActive() {
-        return mIsActive;
+    public void setLoaded(boolean loaded) {
+        mLoaded = loaded;
+    }
+
+    public boolean isLoaded() {
+        return mLoaded;
     }
 
     public boolean isNull() {
@@ -129,28 +132,34 @@ public final class TaskDescription {
         return mLabel.toString();
     }
 
-    public void setThumb(Bitmap thumb) {
-        callListener(thumb);
+    public Drawable getThumb() {
+        return mThumb;
     }
 
-    public void setThumbChangeListener(ThumbChangeListener client) {
-        mListener = client;
-    }
-
-    private void callListener(final Bitmap thumb) {
-        if (mListener != null) {
-            // only call back if the listener is still the one attached to us
-            if (mListener.getPersistentTaskId() == persistentTaskId) {
-                mListener.thumbChanged(persistentTaskId, thumb);
-            }
+    public void setThumb(Drawable thumb) {
+        mThumb = thumb;
+        if (!mInitThumb){
+            callListener();
         }
     }
 
-    public boolean isThumbLoading() {
-        return mThumbLoading;
+    public boolean isInitThumb() {
+        return mInitThumb;
     }
 
-    public void setThumbLoading(boolean mThumbLoading) {
-        this.mThumbLoading = mThumbLoading;
+    public void setInitThumb(boolean value) {
+        mInitThumb = value;
+    }
+
+    public void addThumbChangeListener(ThumbChangeListener client) {
+        mListener.add(client);
+    }
+
+    private void callListener() {
+        Iterator<ThumbChangeListener> nextListener = mListener.iterator();
+        while(nextListener.hasNext()){
+            ThumbChangeListener listener = nextListener.next();
+            listener.thumbChanged();
+        }
     }
 }

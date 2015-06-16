@@ -82,7 +82,6 @@ public class SwitchConfiguration {
     private int mDefaultHandleHeight;
     private int mLabelFontSizePx;
     public int mMaxHeight;
-    private int mIconBorderPx;
 
     public static SwitchConfiguration getInstance(Context context) {
         if (mInstance == null) {
@@ -109,7 +108,6 @@ public class SwitchConfiguration {
         mSmallIconSizePx = Math.round(mSmallIconSizePx * mDensity);
         mActionIconSizePx = Math.round(mActionIconSize * mDensity);
         mLevelChangeWidthX = Math.round(60 * mDensity);
-        mIconBorderPx = Math.round(mIconBorder* mDensity);
         mHorizontalDividerWidth = 0;
         // Render the default thumbnail background
         mThumbnailWidth = (int) context.getResources().getDimensionPixelSize(
@@ -183,12 +181,6 @@ public class SwitchConfiguration {
         Utils.parseFavorites(favoriteListString, mFavoriteList);
         mSpeedSwitcher = prefs.getBoolean(SettingsActivity.PREF_SPEED_SWITCHER, true);
         mFilterBoot = prefs.getBoolean(SettingsActivity.PREF_APP_FILTER_BOOT, true);
-        String filterTimeString = prefs.getString(SettingsActivity.PREF_APP_FILTER_TIME, "0");
-        mFilterTime = Integer.valueOf(filterTimeString);
-        if (mFilterTime != 0) {
-            // value is in hours but we need millisecs
-            mFilterTime = mFilterTime * 3600 * 1000;
-        }
     }
 
     public void resetDefaults(Context context) {
@@ -271,9 +263,5 @@ public class SwitchConfiguration {
 
     public int getItemMaxHeight() {
         return mShowLabels ? mMaxHeight + mLabelFontSizePx :  mMaxHeight;
-    }
-
-    public int getThumbnailMaxHeight() {
-        return mShowLabels ? mThumbnailHeight + mLabelFontSizePx + mIconBorderPx:  mThumbnailHeight;
     }
 }
