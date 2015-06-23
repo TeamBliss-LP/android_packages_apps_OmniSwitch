@@ -457,10 +457,21 @@ public class SwitchLayout extends AbstractSwitchLayout {
     // TODO dont use real icon size values in code
     private int getAppDrawerLines() {
         if (mConfiguration.mIconSize == 40) {
-            return 5;
+            if (mConfiguration.isLandscape()) {
+                return 4;
+            } else {
+                return 5;
+            }
         }
         if (mConfiguration.mIconSize == 60) {
-            return 4;
+            if (mConfiguration.isLandscape()) {
+                return 3;
+            } else {
+                return 4;
+            }
+        }
+        if (mConfiguration.isLandscape()) {
+            return 2;
         }
         return 3;
     }
@@ -493,7 +504,7 @@ public class SwitchLayout extends AbstractSwitchLayout {
         params.y = mConfiguration.getCurrentOffsetStart()
                 + mConfiguration.mDragHandleHeight / 2
                 - mConfiguration.getItemMaxHeight() / 2
-                - (mButtonsVisible ? mConfiguration.getItemMaxHeight() : 0);
+                - (mButtonsVisible ? mConfiguration.mActionIconSizePx : 0);
 
         return params;
     }
@@ -555,9 +566,11 @@ public class SwitchLayout extends AbstractSwitchLayout {
                 mRecentListAdapter.notifyDataSetChanged();
                 mRecentListHorizontal.setAdapter(mRecentListAdapter);
 
+                mAppDrawer.setLayoutParams(getAppDrawerParams());
+                mAppDrawer.requestLayout();
+
                 mWindowManager.updateViewLayout(mPopupView,
                         getParams(mConfiguration.mBackgroundOpacity));
-                mAppDrawer.requestLayout();
             }
         } catch (Exception e) {
             // ignored
