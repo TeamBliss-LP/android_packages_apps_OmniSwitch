@@ -18,7 +18,7 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
 	android:title="@string/recents_settings_title" >
 
-	<CheckBoxPreference
+	<SwitchPreference
 		android:key="start_on_boot"
 		android:summary="@string/start_on_boot_summary"
 		android:title="@string/start_on_boot_title" />
@@ -26,7 +26,7 @@
 	<PreferenceCategory
 		android:key="category_overlay"
 		android:title="@string/category_overlay_title" >
-		<CheckBoxPreference
+		<SwitchPreference
 			android:defaultValue="true"
 			android:key="animate"
 			android:summary="@string/animate_title_summary"
@@ -58,7 +58,7 @@
 			android:summary="@string/opacity_summary"
 			android:title="@string/opacity_title" />
 
-		<CheckBoxPreference
+		<SwitchPreference
 			android:defaultValue="true"
 			android:key="dim_behind"
 			android:summary="@string/dim_behind_summary"
@@ -71,12 +71,12 @@
 			android:summary="@string/gravity_center"
 			android:title="@string/gravity_title" />
 
-		<CheckBoxPreference
+		<SwitchPreference
 			android:defaultValue="true"
 			android:key="show_rambar"
 			android:summary="@string/show_rambar_summary"
 			android:title="@string/show_rambar_title" />
-		<CheckBoxPreference
+		<SwitchPreference
 			android:defaultValue="true"
 			android:key="show_labels"
 			android:summary="@string/show_app_labels_summary"
@@ -108,7 +108,7 @@
 	<PreferenceCategory
 		android:key="app_filter_category"
 		android:title="@string/app_filter_category_title" >
-		<CheckBoxPreference
+		<SwitchPreference
 			android:defaultValue="true"
 			android:key="app_filter_boot"
 			android:title="@string/app_filter_boot_title" />
@@ -117,7 +117,7 @@
 			android:entryValues="@array/app_filter_time_values"
 			android:key="app_filter_time"
 			android:title="@string/app_filter_time_title" />
-		<CheckBoxPreference
+		<SwitchPreference
 			android:defaultValue="false"
 			android:key="app_filter_running"
 			android:title="@string/app_filter_running_title" />
@@ -148,7 +148,7 @@
 			android:max="100"
 			android:title="@string/drag_handle_opacity_title" />
 
-		<CheckBoxPreference
+		<SwitchPreference
 			android:defaultValue="false"
 			android:dependency="drag_handle_enable"
 			android:key="auto_hide_handle"
@@ -165,13 +165,13 @@
 			android:summary="@string/speed_switcher_enable_summary"
 			android:title="@string/speed_switcher_enable_title" />
 
-		<CheckBoxPreference
+		<SwitchPreference
 			android:defaultValue="true"
 			android:dependency="speed_switcher"
 			android:key="speed_switch_color"
 			android:summary="@string/speed_switch_color_summary"
 			android:title="@string/speed_switch_color" />
-		<CheckBoxPreference
+		<SwitchPreference
 			android:defaultValue="true"
 			android:dependency="speed_switcher"
 			android:key="speed_switch_limit"
